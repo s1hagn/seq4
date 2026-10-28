@@ -35,6 +35,7 @@ if __name__ == "__main__":
     bl = BatchLoader("imdb_top_1000.csv", 10)
     while bl.idx < 20:
         bl.generate()
+        git_push()
         time.sleep(3)
 
     
