@@ -29,7 +29,7 @@ for commit in reversed(commits):
         ["git", "show", f"{commit}:batch.csv"]
     )
 
-    batch = pd.read_csv(io.BytesIO(content))
+    batch = pd.read_csv(io.BytesIO(content), encoding="latin1")
     batches.append(batch)
 
 if not batches:
