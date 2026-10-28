@@ -42,3 +42,32 @@ jobs:
 
       - name: Run data processing
         run: python data_processing.py
+
+  export-dashboard:
+    needs: data-processing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository and batch history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas plotly
+
+      - name: Generate HTML dashboard
+        run: python export_dashboard.py
+
+      - name: Upload HTML artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imdb-dashboard
+          path: dashboard.html
+          if-no-files-found: error
+
