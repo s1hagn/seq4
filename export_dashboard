@@ -1,0 +1,153 @@
+
+import io
+import subprocess
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+
+
+# Read the batch.csv versions saved in Git history.
+commits = subprocess.check_output(
+    ["git", "log", "--format=%H", "--", "batch.csv"],
+    text=True
+).splitlines()
+
+batches = []
+
+for commit in reversed(commits):
+    message = subprocess.check_output(
+        ["git", "log", "-1", "--format=%s", commit],
+        text=True
+    ).strip()
+
+    if message != "new batch":
+        continue
+
+    content = subprocess.check_output(
+        ["git", "show", f"{commit}:batch.csv"]
+    )
+
+    batch = pd.read_csv(io.BytesIO(content))
+    batches.append(batch)
+
+if not batches:
+    raise ValueError("No batch data found in Git history.")
+
+df = pd.concat(batches, ignore_index=True)
+
+# The simulator writes the original CSV index.
+# Keep each original movie only once.
+index_column = "Unnamed: 0"
+
+if index_column in df.columns:
+    df = df.drop_duplicates(subset=[index_column])
+    df = df.drop(columns=[index_column])
+
+print(f"Movies aggregated: {len(df)}")
+
+
+# Same data calculations as the existing app.py.
+df["Gross"] = pd.to_numeric(
+    df["Gross"].astype("string").str.replace(",", "", regex=False),
+    errors="coerce"
+)
+
+genre_df = df.copy()
+genre_df["Genre"] = genre_df["Genre"].str.split(",")
+genre_df = genre_df.explode("Genre")
+genre_df["Genre"] = genre_df["Genre"].str.strip()
+
+genre_df["Earning_per_Score"] = (
+    genre_df["Gross"] / genre_df["IMDB_Rating"]
+)
+
+earning_by_genre = (
+    genre_df.groupby("Genre", as_index=False)
+    ["Earning_per_Score"].mean()
+)
+
+fig_earning = px.bar(
+    earning_by_genre,
+    x="Genre",
+    y="Earning_per_Score",
+    title="Average Earning per Score Point by Genre"
+)
+
+df["Runtime"] = pd.to_numeric(
+    df["Runtime"].astype("string")
+    .str.replace("min", "", regex=False).str.strip(),
+    errors="coerce"
+)
+
+df["Released_Year"] = pd.to_numeric(
+    df["Released_Year"],
+    errors="coerce"
+)
+
+runtime_by_year = (
+    df.groupby("Released_Year", as_index=False)
+    ["Runtime"].mean()
+    .sort_values("Released_Year")
+)
+
+fig_runtime = px.line(
+    runtime_by_year,
+    x="Released_Year",
+    y="Runtime",
+    title="Average Runtime by Year"
+)
+
+
+# Export a standalone HTML snapshot.
+table_html = df.head().to_html(index=False, escape=True)
+
+chart_1 = pio.to_html(
+    fig_earning,
+    full_html=False,
+    include_plotlyjs=True
+)
+
+chart_2 = pio.to_html(
+    fig_runtime,
+    full_html=False,
+    include_plotlyjs=False
+)
+
+page = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IMDb 1000</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 30px;
+        }}
+        .table-container {{
+            overflow-x: auto;
+        }}
+        table {{
+            border-collapse: collapse;
+        }}
+        th, td {{
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }}
+    </style>
+</head>
+<body>
+    <h1>IMDB 1000</h1>
+    <div class="table-container">{table_html}</div>
+    {chart_1}
+    {chart_2}
+</body>
+</html>
+"""
+
+Path("dashboard.html").write_text(page, encoding="utf-8")
+
+print("dashboard.html generated successfully")
