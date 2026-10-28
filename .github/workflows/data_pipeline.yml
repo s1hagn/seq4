@@ -1,0 +1,44 @@
+name: IMDb Data Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  data-cleaning:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas
+
+      - name: Run data cleaning
+        run: python data_cleaning.py
+
+  data-processing:
+    needs: data-cleaning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pandas
+
+      - name: Run data processing
+        run: python data_processing.py
